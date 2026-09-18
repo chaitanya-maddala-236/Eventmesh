@@ -1,0 +1,40 @@
+groups:
+  - name: eventmesh-core
+    rules:
+      - alert: EventMeshQueueBacklogHigh
+        expr: eventmesh_queue_depth > 10000
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "EventMesh queue depth is high"
+          description: "Queue depth has been above 10,000 for 5 minutes. Check worker health and throughput."
+
+      - alert: EventMeshDeliveryFailureRateHigh
+        expr: |
+          sum(rate(eventmesh_delivery_failure_total[5m]))
+          /
+          clamp_min(sum(rate(eventmesh_deliveries_total[5m])), 1)
+          > 0.25
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Delivery failure rate above 25%"
+          description: "More than 25% of delivery attempts have failed over the last 10 minutes."
+
+      - alert: EventMeshNoActiveWorkers
+        expr: eventmesh_active_workers == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "No EventMesh workers are reporting heartbeats"
+
+      - alert: EventMeshHighP99Latency
+        expr: histogram_quantile(0.99, sum(rate(eventmesh_delivery_latency_seconds_bucket[5m])) by (le)) > 8
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "p99 webhook delivery latency exceeds 8s"
+
+# Thresholds above (10000 / 25% / 8s) are starting points, not measured
+# SLAs — PRD §120 explicitly forbids inventing a production SLA. Tune
+# these against real traffic from docs/performance.md once it exists.
